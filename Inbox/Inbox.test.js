@@ -16,7 +16,7 @@ beforeEach(async () => {
     inbox = await
         new web3.eth.Contract(JSON.parse(interface))
         .deploy({ data: bytecode, arguments: [ InitialMessage ] })
-        .send({ from: accounts[0], gas: 1000000 })
+        .send({ from: accounts[0], gas: 1000000 });
 });
 
 describe("inbox tests", () => {
