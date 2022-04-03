@@ -3,48 +3,64 @@ pragma solidity ^0.8.13;
 // SPDX-License-Identifier: UNLICENSED
 
 contract Lottery {
-    uint private constant USER_NOT_FOUND = 2**256 - 1;
+    uint private constant USER_NOT_FOUND = type(uint256).max;
+    uint private constant commission = 95; // percents
+
+    uint private currentContribution; // in wei
+    uint private nextRoundContribution; // in wei
 
     address private manager;
     address payable[] private players;
 
-    constructor() {
+    constructor(uint contribution) {
+        nextRoundContribution = contribution;
         manager = msg.sender;
+
+        runNextRound();
     }
 
     function join()
     public
     payable
     {
-        require(!userJoined(msg.sender));
-        require(msg.value == 1 ether);
+        require(!userJoined(msg.sender), "You are playing already");
+        require(msg.value == currentContribution, "Incorrect sum");
 
         players.push(payable(msg.sender));
     }
 
-    //TODO: удалять из списка окончательно?
+    //TODO: improvements: удалять из списка окончательно
     function leave()
     public
     payable
     {
-        require(userJoined(msg.sender));
+        require(userJoined(msg.sender), "You are not playing yet");
 
-        payable(msg.sender).transfer(1 ether);
+        payable(msg.sender).transfer(currentContribution);
         delete players[userIndex(msg.sender)];
     }
 
-    //TODO: добавить комиссию (проблема из-за отсутствия fixed)
     function draw()
     public
     payable
+    onlyManagerAllowed
     {
-        require(msg.sender == manager);
-        require(players.length != 0);
+        require(players.length != 0, "No players yet");
 
         uint winnerIndex = random() % players.length;
-        players[winnerIndex].transfer(address(this).balance);
+        uint winning = address(this).balance * commission / 100;
 
-        reset();
+        players[winnerIndex].transfer(winning);
+        payable(manager).transfer(address(this).balance);
+
+        runNextRound();
+    }
+
+    function updateContribution(uint newContribution)
+    public
+    onlyManagerAllowed
+    {
+        nextRoundContribution = newContribution;
     }
 
     function userIndex(address user)
@@ -78,9 +94,16 @@ contract Lottery {
         return uint(hash);
     }
 
-    function reset()
+    function runNextRound()
     private
     {
         players = new address payable[](0);
+        currentContribution = nextRoundContribution;
+    }
+
+    modifier onlyManagerAllowed()
+    {
+        require(msg.sender == manager, "Only manager allowed to this functionality");
+        _;
     }
 }
